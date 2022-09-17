@@ -1,11 +1,11 @@
 use std::{
     convert::TryInto,
     fs::File,
-    io::{Read, Write},
+    io::Read,
     time::{Duration, Instant},
 };
 
-const BUFFER_LEN: usize = 8192; //1048576;
+const BUFFER_LEN: usize = 1048576; //8192;
 const NUMBER_LEN: usize = BUFFER_LEN / 8;
 const DIGITS_SIZE: usize = 19;
 const DIGITS_REAL_LEN: u64 = (NUMBER_LEN * DIGITS_SIZE) as u64;
@@ -114,23 +114,12 @@ mod tests {
     }
 }
 
-fn register_palindrome(
-    palindrome: u128,
-    position: u64,
-    elapsed_time: Duration,
-    out_file: &mut File,
-) -> std::io::Result<usize> {
-    let out_msg = format!("after {elapsed_time:?} at {position}: {palindrome}\n");
-    out_file.write(out_msg.as_bytes())
+fn register_palindrome(palindrome: u128, position: u64, elapsed_time: Duration) {
+    println!("after {elapsed_time:?} at {position}: {palindrome}");
 }
 
-fn register_eof(
-    file_index: usize,
-    elapsed_time: Duration,
-    out_file: &mut File,
-) -> std::io::Result<usize> {
-    let out_msg = format!("finished file {file_index} after {elapsed_time:?}\n");
-    out_file.write(out_msg.as_bytes())
+fn register_eof(file_index: usize, elapsed_time: Duration) {
+    println!("finished file {file_index} after {elapsed_time:?}");
 }
 
 fn main() -> std::io::Result<()> {
@@ -138,11 +127,10 @@ fn main() -> std::io::Result<()> {
     let mut n_digits = INIT_N_DIGITS;
 
     let mut buffer = [0u8; BUFFER_LEN];
-    let mut out_file = File::create("./res")?;
 
-    for file_index in 0..=1 {
+    for file_index in 0..=1000 {
         // let file_path = format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        // let reader = File::open(file_path)?;
+        // let mut reader = File::open(file_path).expect("Fail while opening file.");
 
         let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
         let file_path_str = file_path.as_str();
@@ -156,7 +144,9 @@ fn main() -> std::io::Result<()> {
         {
             let mut temp = [0u8; 1];
             loop {
-                reader.read(&mut temp)?;
+                reader
+                    .read(&mut temp)
+                    .expect("Fail while reading initial bytes.");
                 if temp[0] == 0 {
                     break;
                 }
@@ -178,7 +168,7 @@ fn main() -> std::io::Result<()> {
                         find_prime_palindrome(&digits[min_index..max_index], MAX_DIGITS, n_digits)
                     {
                         let position = position + (i - DIGITS_SIZE) as u64;
-                        register_palindrome(result.0, position, start.elapsed(), &mut out_file)?;
+                        register_palindrome(result.0, position, start.elapsed());
                         n_digits = result.1 + 2;
                     }
                 }
@@ -187,7 +177,7 @@ fn main() -> std::io::Result<()> {
 
             position += DIGITS_REAL_LEN;
         }
-        register_eof(file_index, start.elapsed(), &mut out_file)?;
+        register_eof(file_index, start.elapsed());
     }
 
     let duration = start.elapsed();
