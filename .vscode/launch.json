@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'palindromos_primos_pi'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=palindromos_primos_pi",
+                    "--package=palindromos_primos_pi"
+                ],
+                "filter": {
+                    "name": "palindromos_primos_pi",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'palindromos_primos_pi'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=palindromos_primos_pi",
+                    "--package=palindromos_primos_pi"
+                ],
+                "filter": {
+                    "name": "palindromos_primos_pi",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
