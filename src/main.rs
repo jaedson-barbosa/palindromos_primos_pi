@@ -140,9 +140,14 @@ fn main() -> std::io::Result<()> {
     let mut buffer = [0u8; BUFFER_LEN];
     let mut out_file = File::create("./res")?;
 
-    for file_index in 0..=3 {
-        let file_path = format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        let mut file = File::open(file_path)?;
+    for file_index in 0..=1 {
+        // let file_path = format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        // let reader = File::open(file_path)?;
+
+        let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        let file_path_str = file_path.as_str();
+        let resp = ureq::get(file_path_str).call().unwrap();
+        let mut reader = resp.into_reader();
 
         let mut position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
         let mut digits = [0u8; DIGITS_LEN];
@@ -151,7 +156,7 @@ fn main() -> std::io::Result<()> {
         {
             let mut temp = [0u8; 1];
             loop {
-                file.read(&mut temp)?;
+                reader.read(&mut temp)?;
                 if temp[0] == 0 {
                     break;
                 }
@@ -159,7 +164,7 @@ fn main() -> std::io::Result<()> {
         }
 
         // Find all palindromes
-        while file.read(&mut buffer)? == BUFFER_LEN {
+        while let Ok(()) = reader.read_exact(&mut buffer) {
             u64_to_digits(buffer, &mut digits);
 
             let mut i = DIGITS_SIZE;
@@ -184,9 +189,6 @@ fn main() -> std::io::Result<()> {
         }
         register_eof(file_index, start.elapsed(), &mut out_file)?;
     }
-
-    // E finalizamos com download via ureq
-    // Para entao enviar para a VM do Google Cloud
 
     let duration = start.elapsed();
 
