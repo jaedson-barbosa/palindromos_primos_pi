@@ -8,7 +8,7 @@ use std::{
 const BUFFER_LEN: usize = 8192; //1048576;
 const NUMBER_LEN: usize = BUFFER_LEN / 8;
 const DIGITS_SIZE: usize = 19;
-const DIGITS_REAL_LEN: usize = NUMBER_LEN * DIGITS_SIZE;
+const DIGITS_REAL_LEN: u64 = (NUMBER_LEN * DIGITS_SIZE) as u64;
 const DIGITS_LEN: usize = (NUMBER_LEN + 1) * DIGITS_SIZE;
 const MAX_DIGITS: usize = 37; // 128 bits
 const INIT_N_DIGITS: usize = 19;
@@ -116,7 +116,7 @@ mod tests {
 
 fn register_palindrome(
     palindrome: u128,
-    position: usize,
+    position: u64,
     elapsed_time: Duration,
     out_file: &mut File,
 ) -> std::io::Result<usize> {
@@ -134,55 +134,57 @@ fn register_eof(
 }
 
 fn main() -> std::io::Result<()> {
+    let start = Instant::now();
+    let mut n_digits = INIT_N_DIGITS;
+
     let mut buffer = [0u8; BUFFER_LEN];
     let mut out_file = File::create("./res")?;
 
-    let file_index = 0;
-    let mut file = File::open("/home/jaedson/Documentos/Pi - Dec - Chudnovsky - 0.ycd")?;
+    for file_index in 0..=3 {
+        let file_path = format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        let mut file = File::open(file_path)?;
 
-    let start = Instant::now();
-    let mut position = 1; // position in 1-based
-    let mut digits = [0u8; DIGITS_LEN];
-    let mut n_digits = INIT_N_DIGITS;
+        let mut position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
+        let mut digits = [0u8; DIGITS_LEN];
 
-    // Find file start
-    {
-        let mut temp = [0u8; 1];
-        loop {
-            file.read(&mut temp)?;
-            if temp[0] == 0 {
-                break;
-            }
-        }
-    }
-
-    // Find all palindromes
-    while file.read(&mut buffer)? == BUFFER_LEN {
-        u64_to_digits(buffer, &mut digits);
-
-        let mut i = DIGITS_SIZE;
-        while i < DIGITS_LEN - n_digits {
-            let k = i + n_digits - 1;
-            let valid = (0..n_digits / 2).all(|j| digits[i + j] == digits[k - j]);
-            if valid {
-                let min_index = i - (MAX_DIGITS - n_digits) / 2;
-                let max_index = min_index + MAX_DIGITS;
-                if let Some(result) =
-                    find_prime_palindrome(&digits[min_index..max_index], MAX_DIGITS, n_digits)
-                {
-                    let position = position + i - DIGITS_SIZE;
-                    register_palindrome(result.0, position, start.elapsed(), &mut out_file)?;
-                    n_digits = result.1 + 2;
+        // Find file start
+        {
+            let mut temp = [0u8; 1];
+            loop {
+                file.read(&mut temp)?;
+                if temp[0] == 0 {
+                    break;
                 }
             }
-            i += 1;
         }
 
-        position += DIGITS_REAL_LEN;
-    }
-    register_eof(file_index, start.elapsed(), &mut out_file)?;
+        // Find all palindromes
+        while file.read(&mut buffer)? == BUFFER_LEN {
+            u64_to_digits(buffer, &mut digits);
 
-    // Então loop para analisar multiplos arquivos
+            let mut i = DIGITS_SIZE;
+            while i < DIGITS_LEN - n_digits {
+                let k = i + n_digits - 1;
+                let valid = (0..n_digits / 2).all(|j| digits[i + j] == digits[k - j]);
+                if valid {
+                    let min_index = i - (MAX_DIGITS - n_digits) / 2;
+                    let max_index = min_index + MAX_DIGITS;
+                    if let Some(result) =
+                        find_prime_palindrome(&digits[min_index..max_index], MAX_DIGITS, n_digits)
+                    {
+                        let position = position + (i - DIGITS_SIZE) as u64;
+                        register_palindrome(result.0, position, start.elapsed(), &mut out_file)?;
+                        n_digits = result.1 + 2;
+                    }
+                }
+                i += 1;
+            }
+
+            position += DIGITS_REAL_LEN;
+        }
+        register_eof(file_index, start.elapsed(), &mut out_file)?;
+    }
+
     // E finalizamos com download via ureq
     // Para entao enviar para a VM do Google Cloud
 
