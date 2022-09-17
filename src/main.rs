@@ -1,11 +1,17 @@
-use std::{convert::TryInto, fs::File, io::Read, time::Instant};
+use std::{
+    convert::TryInto,
+    fs::File,
+    io::{Read, Write},
+    time::{Duration, Instant},
+};
 
-const BUFFER_LEN: usize = 1048576;
+const BUFFER_LEN: usize = 8192; //1048576;
 const NUMBER_LEN: usize = BUFFER_LEN / 8;
 const DIGITS_SIZE: usize = 19;
+const DIGITS_REAL_LEN: usize = NUMBER_LEN * DIGITS_SIZE;
 const DIGITS_LEN: usize = (NUMBER_LEN + 1) * DIGITS_SIZE;
 const MAX_DIGITS: usize = 37; // 128 bits
-const INIT_N_DIGITS: usize = 9;
+const INIT_N_DIGITS: usize = 19;
 
 fn u64_to_digits(raw: [u8; BUFFER_LEN], digits: &mut [u8; DIGITS_LEN]) {
     for i in 0..DIGITS_SIZE {
@@ -108,15 +114,34 @@ mod tests {
     }
 }
 
-fn register_palindrome(palindrome: u128) {
-    println!("{palindrome}");
+fn register_palindrome(
+    palindrome: u128,
+    position: usize,
+    elapsed_time: Duration,
+    out_file: &mut File,
+) -> std::io::Result<usize> {
+    let out_msg = format!("after {elapsed_time:?} at {position}: {palindrome}\n");
+    out_file.write(out_msg.as_bytes())
+}
+
+fn register_eof(
+    file_index: usize,
+    elapsed_time: Duration,
+    out_file: &mut File,
+) -> std::io::Result<usize> {
+    let out_msg = format!("finished file {file_index} after {elapsed_time:?}\n");
+    out_file.write(out_msg.as_bytes())
 }
 
 fn main() -> std::io::Result<()> {
     let mut buffer = [0u8; BUFFER_LEN];
+    let mut out_file = File::create("./res")?;
+
+    let file_index = 0;
     let mut file = File::open("/home/jaedson/Documentos/Pi - Dec - Chudnovsky - 0.ycd")?;
 
     let start = Instant::now();
+    let mut position = 1; // position in 1-based
     let mut digits = [0u8; DIGITS_LEN];
     let mut n_digits = INIT_N_DIGITS;
 
@@ -137,22 +162,26 @@ fn main() -> std::io::Result<()> {
 
         let mut i = DIGITS_SIZE;
         while i < DIGITS_LEN - n_digits {
-            let valid = (0..n_digits / 2).all(|j| digits[i + j] == digits[i + n_digits - j - 1]);
+            let k = i + n_digits - 1;
+            let valid = (0..n_digits / 2).all(|j| digits[i + j] == digits[k - j]);
             if valid {
                 let min_index = i - (MAX_DIGITS - n_digits) / 2;
                 let max_index = min_index + MAX_DIGITS;
                 if let Some(result) =
                     find_prime_palindrome(&digits[min_index..max_index], MAX_DIGITS, n_digits)
                 {
-                    register_palindrome(result.0);
+                    let position = position + i - DIGITS_SIZE;
+                    register_palindrome(result.0, position, start.elapsed(), &mut out_file)?;
                     n_digits = result.1 + 2;
                 }
             }
             i += 1;
         }
-    }
 
-    // Depois programar salvar em arquivo com posicao e tempo
+        position += DIGITS_REAL_LEN;
+    }
+    register_eof(file_index, start.elapsed(), &mut out_file)?;
+
     // Então loop para analisar multiplos arquivos
     // E finalizamos com download via ureq
     // Para entao enviar para a VM do Google Cloud
