@@ -1,9 +1,17 @@
+#![feature(array_windows)]
+
 use std::{
     convert::TryInto,
     fs::File,
     io::Read,
     time::{Duration, Instant},
 };
+
+struct Palindrome {
+    number: u128,
+    position: u64,
+    n_digits: usize,
+}
 
 const BUFFER_LEN: usize = 1048576; //8192;
 const NUMBER_LEN: usize = BUFFER_LEN / 8;
@@ -57,7 +65,9 @@ fn find_prime_palindrome(
     palindrome: &[u8],
     max_digits: usize,
     mut n_digits: usize,
-) -> Option<(u128, usize)> {
+    block_position: u64,
+    inner_position: usize,
+) -> Option<Palindrome> {
     let init_index = (max_digits - n_digits) / 2;
     let mut result = None;
 
@@ -66,7 +76,12 @@ fn find_prime_palindrome(
             n_digits = max_digits - 2 * i;
             let number = digits_to_number(&palindrome[i..], n_digits);
             if is_prime(number) {
-                result = Some((number, n_digits));
+                let position = block_position + (inner_position - DIGITS_SIZE) as u64;
+                result = Some(Palindrome {
+                    number,
+                    n_digits,
+                    position,
+                });
             }
         } else {
             break;
@@ -91,10 +106,10 @@ mod tests {
     fn test_find_prime_palindrome() {
         const MAX_DIGITS: usize = 5;
         let palindrome: [u8; MAX_DIGITS] = [0, 3, 8, 3, 0];
-        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3);
-        if let Some((number, size)) = result {
-            assert_eq!(size, 3);
-            assert_eq!(number, 383u128);
+        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3, 0, 0);
+        if let Some(palindrome) = result {
+            assert_eq!(palindrome.n_digits, 3);
+            assert_eq!(palindrome.number, 383u128);
         } else {
             panic!("Prime palindrome not found.");
         }
@@ -104,10 +119,10 @@ mod tests {
     fn test_find_prime_palindrome_extended() {
         const MAX_DIGITS: usize = 5;
         let palindrome: [u8; MAX_DIGITS] = [1, 3, 8, 3, 1];
-        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3);
-        if let Some((number, size)) = result {
-            assert_eq!(size, 5);
-            assert_eq!(number, 13831u128);
+        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3, 0, 0);
+        if let Some(palindrome) = result {
+            assert_eq!(palindrome.n_digits, 5);
+            assert_eq!(palindrome.number, 13831u128);
         } else {
             panic!("Prime palindrome not found.");
         }
@@ -129,15 +144,16 @@ fn main() -> std::io::Result<()> {
     let mut buffer = [0u8; BUFFER_LEN];
 
     for file_index in 0..=1000 {
-        // let file_path = format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        // let mut reader = File::open(file_path).expect("Fail while opening file.");
+        let file_path =
+            format!("/home/jaedson/Documentos/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        let mut reader = File::open(file_path).expect("Fail while opening file.");
 
-        let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        let file_path_str = file_path.as_str();
-        let resp = ureq::get(file_path_str).call().unwrap();
-        let mut reader = resp.into_reader();
+        // let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        // let file_path_str = file_path.as_str();
+        // let resp = ureq::get(file_path_str).call().unwrap();
+        // let mut reader = resp.into_reader();
 
-        let mut position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
+        let mut block_position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
         let mut digits = [0u8; DIGITS_LEN];
 
         // Find file start
@@ -153,29 +169,40 @@ fn main() -> std::io::Result<()> {
             }
         }
 
+        // melhorado 15%, agora eh 560s
+
         // Find all palindromes
         while let Ok(()) = reader.read_exact(&mut buffer) {
             u64_to_digits(buffer, &mut digits);
-
-            let mut i = DIGITS_SIZE;
-            while i < DIGITS_LEN - n_digits {
-                let k = i + n_digits - 1;
-                let valid = (0..n_digits / 2).all(|j| digits[i + j] == digits[k - j]);
-                if valid {
-                    let min_index = i - (MAX_DIGITS - n_digits) / 2;
-                    let max_index = min_index + MAX_DIGITS;
-                    if let Some(result) =
-                        find_prime_palindrome(&digits[min_index..max_index], MAX_DIGITS, n_digits)
-                    {
-                        let position = position + (i - DIGITS_SIZE) as u64;
-                        register_palindrome(result.0, position, start.elapsed());
-                        n_digits = result.1 + 2;
+            let max_range = n_digits / 2;
+            let padding = (MAX_DIGITS - n_digits) / 2;
+            let new_n_digits = digits
+                .array_windows::<MAX_DIGITS>()
+                .enumerate()
+                .filter(|(_, v)| {
+                    (0..max_range).all(|i| v[padding + i] == v[padding + n_digits - 1 - i])
+                })
+                .map(|(inner_position, palindrome)| find_prime_palindrome(palindrome, MAX_DIGITS, n_digits, block_position, inner_position))
+                .filter(|v| v.is_some())
+                .map(|v| v.unwrap())
+                .reduce(|accur, item| {
+                    if item.n_digits > accur.n_digits {
+                        item
+                    } else {
+                        accur
                     }
-                }
-                i += 1;
+                });
+
+            if let Some(palindrome) = new_n_digits {
+                register_palindrome(
+                    palindrome.number,
+                    palindrome.position as u64,
+                    start.elapsed(),
+                );
+                n_digits = palindrome.n_digits + 2;
             }
 
-            position += DIGITS_REAL_LEN;
+            block_position += DIGITS_REAL_LEN;
         }
         register_eof(file_index, start.elapsed());
     }
