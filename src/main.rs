@@ -13,46 +13,46 @@ struct Palindrome {
     n_digits: usize,
 }
 
-const BUFFER_LEN: usize = 1048576; //8192;
+const BUFFER_LEN: usize = 65536; //1048576 8192 65536
 const NUMBER_LEN: usize = BUFFER_LEN / 8;
 const DIGITS_SIZE: usize = 19;
 const DIGITS_REAL_LEN: u64 = (NUMBER_LEN * DIGITS_SIZE) as u64;
-const DIGITS_LEN: usize = (NUMBER_LEN + 1) * DIGITS_SIZE;
+const DIGITS_LEN: usize = NUMBER_LEN * DIGITS_SIZE + MAX_DIGITS;
 const MAX_DIGITS: usize = 37; // 128 bits
-const INIT_N_DIGITS: usize = 19;
+const N_DIGITS: usize = 25;
 
-fn u64_to_digits(raw: [u8; BUFFER_LEN], digits: &mut [u8; DIGITS_LEN]) {
-    for i in 0..DIGITS_SIZE {
-        digits[i] = digits[DIGITS_LEN + i - DIGITS_SIZE];
+fn u64_to_digits(raw: [u8; BUFFER_LEN], digits: &mut [u64; DIGITS_LEN]) {
+    for i in 0..MAX_DIGITS {
+        digits[i] = digits[DIGITS_LEN + i - MAX_DIGITS];
     }
 
     for i in 0..NUMBER_LEN {
         let bytes: [u8; 8] = raw[i * 8..i * 8 + 8].try_into().unwrap();
         let mut r0 = u64::from_le_bytes(bytes);
-        let index = (i + 1) * DIGITS_SIZE;
+        let index = i * DIGITS_SIZE + MAX_DIGITS;
 
         for i in (0..19).rev() {
-            digits[index + i] = (r0 % 10) as u8;
+            digits[index + i] = r0 % 10;
             r0 /= 10;
         }
     }
 }
 
 fn is_prime(num: u128) -> bool {
-    if num <= 1 {
+    if num <= 1 || num % 2 == 0 {
         return false;
     }
-    let mut i = 2;
+    let mut i = 3;
     while i * i <= num {
         if num % i == 0 {
             return false;
         }
-        i += 1;
+        i += 2;
     }
     true
 }
 
-fn digits_to_number(digits: &[u8], n_digits: usize) -> u128 {
+fn digits_to_number(digits: &[u64], n_digits: usize) -> u128 {
     let mut result: u128 = 0;
     for i in 0..n_digits {
         result *= 10;
@@ -62,21 +62,17 @@ fn digits_to_number(digits: &[u8], n_digits: usize) -> u128 {
 }
 
 fn find_prime_palindrome(
-    palindrome: &[u8],
-    max_digits: usize,
-    mut n_digits: usize,
-    block_position: u64,
-    inner_position: usize,
+    palindrome: &[u64],
+    position: u64,
 ) -> Option<Palindrome> {
-    let init_index = (max_digits - n_digits) / 2;
+    let init_index = (MAX_DIGITS - N_DIGITS) / 2;
     let mut result = None;
 
     for i in (0..=init_index).rev() {
-        if palindrome[i] == palindrome[max_digits - i - 1] {
-            n_digits = max_digits - 2 * i;
+        if palindrome[i] == palindrome[MAX_DIGITS - i - 1] {
+            let n_digits = MAX_DIGITS - 2 * i;
             let number = digits_to_number(&palindrome[i..], n_digits);
             if is_prime(number) {
-                let position = block_position + (inner_position - DIGITS_SIZE) as u64;
                 result = Some(Palindrome {
                     number,
                     n_digits,
@@ -101,36 +97,10 @@ mod tests {
         let number = digits_to_number(&digits, 4);
         assert_eq!(number, 1356u128);
     }
-
-    #[test]
-    fn test_find_prime_palindrome() {
-        const MAX_DIGITS: usize = 5;
-        let palindrome: [u8; MAX_DIGITS] = [0, 3, 8, 3, 0];
-        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3, 0, 0);
-        if let Some(palindrome) = result {
-            assert_eq!(palindrome.n_digits, 3);
-            assert_eq!(palindrome.number, 383u128);
-        } else {
-            panic!("Prime palindrome not found.");
-        }
-    }
-
-    #[test]
-    fn test_find_prime_palindrome_extended() {
-        const MAX_DIGITS: usize = 5;
-        let palindrome: [u8; MAX_DIGITS] = [1, 3, 8, 3, 1];
-        let result = find_prime_palindrome(&palindrome, MAX_DIGITS, 3, 0, 0);
-        if let Some(palindrome) = result {
-            assert_eq!(palindrome.n_digits, 5);
-            assert_eq!(palindrome.number, 13831u128);
-        } else {
-            panic!("Prime palindrome not found.");
-        }
-    }
 }
 
-fn register_palindrome(palindrome: u128, position: u64, elapsed_time: Duration) {
-    println!("after {elapsed_time:?} at {position}: {palindrome}");
+fn register_palindrome(palindrome: u128, position: u64) {
+    println!("at {position}: {palindrome}");
 }
 
 fn register_eof(file_index: usize, elapsed_time: Duration) {
@@ -138,8 +108,13 @@ fn register_eof(file_index: usize, elapsed_time: Duration) {
 }
 
 fn main() -> std::io::Result<()> {
+    const MEIO: usize = N_DIGITS / 2;
+    const EXPOENTE: usize = 4 * MEIO;
+    const FULL: u64 = (1u64 << EXPOENTE) - 1;
+    const PADDING: usize = (MAX_DIGITS - N_DIGITS) / 2;
+    const DESL_ESQ: usize = 4 * (MEIO - 1);
+
     let start = Instant::now();
-    let mut n_digits = INIT_N_DIGITS;
 
     let mut buffer = [0u8; BUFFER_LEN];
 
@@ -154,7 +129,7 @@ fn main() -> std::io::Result<()> {
         // let mut reader = resp.into_reader();
 
         let mut block_position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
-        let mut digits = [0u8; DIGITS_LEN];
+        let mut digits = [0u64; DIGITS_LEN];
 
         // Find file start
         {
@@ -169,41 +144,35 @@ fn main() -> std::io::Result<()> {
             }
         }
 
-        // melhorado 15%, agora eh 560s
+        // melhorado 62%, agora eh 249
+        let mut esquerda = 0u64;
+        let mut direita = 0u64;
 
         // Find all palindromes
         while let Ok(()) = reader.read_exact(&mut buffer) {
             u64_to_digits(buffer, &mut digits);
-            let max_range = n_digits / 2;
-            let padding = (MAX_DIGITS - n_digits) / 2;
-            let new_n_digits = digits
-                .array_windows::<MAX_DIGITS>()
-                .enumerate()
-                .filter(|(_, v)| {
-                    (0..max_range).all(|i| v[padding + i] == v[padding + n_digits - 1 - i])
-                })
-                .map(|(inner_position, palindrome)| find_prime_palindrome(palindrome, MAX_DIGITS, n_digits, block_position, inner_position))
-                .filter(|v| v.is_some())
-                .map(|v| v.unwrap())
-                .reduce(|accur, item| {
-                    if item.n_digits > accur.n_digits {
-                        item
-                    } else {
-                        accur
-                    }
-                });
 
-            if let Some(palindrome) = new_n_digits {
-                register_palindrome(
-                    palindrome.number,
-                    palindrome.position as u64,
-                    start.elapsed(),
-                );
-                n_digits = palindrome.n_digits + 2;
+            let a_slice = &digits[PADDING + MEIO - 1..];
+            let b_slice = &digits[PADDING + N_DIGITS - 1..];
+
+            for i in 0..DIGITS_LEN - MAX_DIGITS {
+                esquerda = (esquerda >> 4) | (a_slice[i] << DESL_ESQ);
+                direita = ((direita << 4) & FULL) | b_slice[i];
+                if esquerda == direita {
+                    let palindrome = &digits[i..];
+                    let palindrome = find_prime_palindrome(palindrome, block_position + i as u64);
+                    if let Some(new_p) = palindrome {
+                        register_palindrome(
+                            new_p.number,
+                            new_p.position as u64
+                        );
+                    }
+                }
             }
 
             block_position += DIGITS_REAL_LEN;
         }
+
         register_eof(file_index, start.elapsed());
     }
 
