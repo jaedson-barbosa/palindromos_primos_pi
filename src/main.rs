@@ -1,5 +1,3 @@
-#![feature(array_windows)]
-
 use std::{
     convert::TryInto,
     fs::File,
