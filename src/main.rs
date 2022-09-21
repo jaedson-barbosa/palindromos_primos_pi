@@ -118,15 +118,15 @@ fn main() -> std::io::Result<()> {
 
     let mut buffer = [0u8; BUFFER_LEN];
 
-    for file_index in 0..=1000 {
-        let file_path =
-            format!("/home/jaedson/Documentos/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        let mut reader = File::open(file_path).expect("Fail while opening file.");
+    for file_index in 330..=1000 {
+        // let file_path =
+        //     format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        // let mut reader = File::open(file_path).expect("Fail while opening file.");
 
-        // let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
-        // let file_path_str = file_path.as_str();
-        // let resp = ureq::get(file_path_str).call().unwrap();
-        // let mut reader = resp.into_reader();
+        let file_path = format!("http://storage.googleapis.com/pi100t/Pi - Dec - Chudnovsky/Pi - Dec - Chudnovsky - {file_index}.ycd");
+        let file_path_str = file_path.as_str();
+        let resp = ureq::get(file_path_str).call().unwrap();
+        let mut reader = resp.into_reader();
 
         let mut block_position = file_index as u64 * 100_000_000_000 + 1; // position in 1-based
         let mut digits = [0u64; DIGITS_LEN];
@@ -145,6 +145,8 @@ fn main() -> std::io::Result<()> {
         }
 
         // melhorado 62%, agora eh 249
+        // aparentemente qualquer mudança piora o resultado e esse ja eh o limite
+
         let mut esquerda = 0u64;
         let mut direita = 0u64;
 
