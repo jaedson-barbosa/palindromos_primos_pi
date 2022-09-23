@@ -115,7 +115,7 @@ fn main() -> std::io::Result<()> {
 
     let mut buffer = [0u8; BUFFER_LEN];
 
-    for file_index in 368..=1000 {
+    for file_index in 586..=1000 {
         // let file_path =
         //     format!("/run/media/jaedson/048eda97-d4bd-403e-9540-ccdceaa630d9/Pi/Pi - Dec - Chudnovsky - {file_index}.ycd");
         // let mut reader = File::open(file_path).expect("Fail while opening file.");
